@@ -11,6 +11,7 @@ import (
 	"code.gitea.io/gitea/modules/setting"
 	"code.gitea.io/gitea/routers/api/v1/user"
 	api "code.gitea.io/sdk/gitea"
+	"github.com/markbates/goth"
 )
 
 func parseLoginSource(ctx *context.APIContext, u *models.User, sourceID int64, loginName string) {
@@ -61,6 +62,7 @@ func CreateUser(ctx *context.APIContext, form api.CreateUserOption) {
 		Passwd:    form.Password,
 		IsActive:  true,
 		LoginType: models.LoginPlain,
+		KeepEmailPrivate: true,
 	}
 
 	parseLoginSource(ctx, u, form.SourceID, form.LoginName)
@@ -84,6 +86,17 @@ func CreateUser(ctx *context.APIContext, form api.CreateUserOption) {
 	// Send email notification.
 	if form.SendNotify && setting.MailService != nil {
 		models.SendRegisterNotifyMail(ctx.Context.Context, u)
+	}
+
+	if form.ExternalID != "" && form.ExternalProvider != "" {
+		// create goth user https://github.com/markbates/goth/blob/master/user.go
+		gothUser := goth.User{
+			UserID: form.ExternalID,
+			Provider: form.ExternalProvider,
+		}
+
+		// call models.LinkAccountToUser
+		models.LinkAccountToUser(u, gothUser)
 	}
 
 	ctx.JSON(201, u.APIFormat())

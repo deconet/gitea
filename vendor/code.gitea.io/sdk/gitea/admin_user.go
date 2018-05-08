@@ -23,6 +23,8 @@ type CreateUserOption struct {
 	// required: true
 	Password string `json:"password" binding:"Required;MaxSize(255)"`
 	SendNotify bool `json:"send_notify"`
+	ExternalID string `json:"external_id"`
+	ExternalProvider string `json:"external_provider"`
 }
 
 // AdminCreateUser create a user
