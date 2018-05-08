@@ -1,0 +1,22 @@
+		{{if or (not .LinkAccountMode) (and .LinkAccountMode .LinkAccountModeSignIn)}}
+		{{template "base/alert" .}}
+		{{end}}
+		<h4 class="ui top attached header center">
+			Sign In
+		</h4>
+		<div class="ui attached segment">
+			<form class="ui form" action="{{.SignInLink}}" method="post">
+			{{if and .OrderedOAuth2Names .OAuth2Providers}}
+			<div class="ui attached segment">
+				<div class="oauth2 center">
+					<div>
+						<p>{{.i18n.Tr "sign_in_with"}}</p>{{range $key := .OrderedOAuth2Names}}
+						{{$provider := index $.OAuth2Providers $key}}
+						<a href="{{AppSubUrl}}/user/oauth2/{{$key}}"><img alt="Deconet" title="Deconet" class="{{$provider.Name}}" src="{{AppSubUrl}}{{$provider.Image}}" style="border: 1px solid black; padding: 2px;"></a>
+						{{end}}
+					</div>
+				</div>
+			</div>
+			{{end}}
+			</form>
+		</div>
