@@ -44,7 +44,6 @@ coverage.all
 /integrations.test
 
 /bin
-/dist
 /data
 /indexers
 /log
