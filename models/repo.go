@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"code.gitea.io/git"
 	"code.gitea.io/gitea/modules/log"
@@ -45,6 +46,9 @@ var (
 
 	// ErrNameEmpty name is empty error
 	ErrNameEmpty = errors.New("Name is empty")
+
+	// ErrNameTooLong name is empty error
+	ErrNameTooLong = errors.New("Name is too long")
 )
 
 var (
@@ -1322,6 +1326,9 @@ var (
 
 // IsUsableRepoName returns true when repository is usable
 func IsUsableRepoName(name string) error {
+	if utf8.RuneCountInString(name) > 32 {
+		return ErrNameTooLong
+	}
 	return isUsableName(reservedRepoNames, reservedRepoPatterns, name)
 }
 
