@@ -2018,6 +2018,27 @@ func GetUserRepositories(userID int64, private bool, page, pageSize int, orderBy
 	return repos, sess.Find(&repos)
 }
 
+// GetAllRepositories returns a list of all repositories.
+func GetAllRepositories(private bool, page, pageSize int, orderBy string) ([]*Repository, error) {
+	if len(orderBy) == 0 {
+		orderBy = "updated_unix DESC"
+	}
+
+	sess := x.
+		OrderBy(orderBy)
+	if !private {
+		sess.And("is_private=?", false)
+	}
+
+	if page <= 0 {
+		page = 1
+	}
+	sess.Limit(pageSize, (page-1)*pageSize)
+
+	repos := make([]*Repository, 0, pageSize)
+	return repos, sess.Find(&repos)
+}
+
 // GetUserMirrorRepositories returns a list of mirror repositories of given user.
 func GetUserMirrorRepositories(userID int64) ([]*Repository, error) {
 	repos := make([]*Repository, 0, 10)

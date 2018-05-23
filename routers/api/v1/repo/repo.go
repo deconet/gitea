@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"strconv"
 
 	"code.gitea.io/gitea/models"
 	"code.gitea.io/gitea/modules/auth"
@@ -16,6 +17,8 @@ import (
 	"code.gitea.io/gitea/modules/setting"
 	"code.gitea.io/gitea/modules/util"
 	"code.gitea.io/gitea/routers/api/v1/convert"
+	// "code.gitea.io/gitea/modules/cache"
+	"code.gitea.io/git"
 	api "code.gitea.io/sdk/gitea"
 )
 
@@ -381,6 +384,55 @@ func Get(ctx *context.APIContext) {
 	//   "200":
 	//     "$ref": "#/responses/Repository"
 	ctx.JSON(200, ctx.Repo.Repository.APIFormat(ctx.Repo.AccessMode))
+}
+
+func Commits(ctx *context.APIContext) {
+	// swagger:operation GET /repos/commits
+	// ---
+	// summary: Get all repo commits
+	// produces:
+	// - application/json
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/Repository"
+	fmt.Println("Getting all repositories")
+	repos, err := models.GetAllRepositories(false, 1, 1000000, "updated_unix DESC")
+	if err != nil {
+		ctx.Error(500, "GetRepositoryCommits", err)
+		return
+	}
+
+	results := make(map[string]int64, len(repos))
+	for _, repo := range repos {
+
+		// get the commit count
+		var cmd *git.Command
+		cmd = git.NewCommand("rev-list", "--all", "--count")
+
+		stdout, err := cmd.RunInDir(repo.RepoPath())
+		if err != nil {
+			ctx.Error(500, "GetRepositoryCommits", err)
+			return
+		}
+
+		commits, err := strconv.ParseInt(strings.TrimSpace(stdout), 10, 64)
+
+		if err != nil {
+			ctx.Error(500, "GetRepositoryCommits", err)
+			return
+		}
+		
+		// fmt.Println("commits count for repo: ")
+		// fmt.Println(commits)
+		results[repo.OwnerName + "/" + repo.Name] = commits
+		// results[i] = repo.APIFormat(models.AccessModeAdmin)
+	}
+
+	count := len(repos)
+
+	ctx.SetLinkHeader(int(count), setting.API.MaxResponseItems)
+	ctx.Header().Set("X-Total-Count", fmt.Sprintf("%d", count))
+	ctx.JSON(200, results)
 }
 
 // GetByID returns a single Repository
