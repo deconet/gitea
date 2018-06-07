@@ -90,6 +90,7 @@ var (
 	AppDataPath    string
 	AppWorkPath    string
 
+
 	// Server settings
 	Protocol             Scheme
 	Domain               string
@@ -107,6 +108,9 @@ var (
 	LandingPageURL       LandingPage
 	UnixSocketPermission uint32
 	EnablePprof          bool
+
+	// custom deconet settings
+	DeconetHost		       string
 
 	SSH = struct {
 		Disabled             bool           `ini:"DISABLE_SSH"`
@@ -706,6 +710,8 @@ func NewContext() {
 	Domain = sec.Key("DOMAIN").MustString("localhost")
 	HTTPAddr = sec.Key("HTTP_ADDR").MustString("0.0.0.0")
 	HTTPPort = sec.Key("HTTP_PORT").MustString("3000")
+
+	DeconetHost = sec.Key("DECONET_HOST").MustString("")
 
 	defaultAppURL := string(Protocol) + "://" + Domain
 	if (Protocol == HTTP && HTTPPort != "80") || (Protocol == HTTPS && HTTPPort != "443") {

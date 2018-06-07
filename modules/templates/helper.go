@@ -45,6 +45,9 @@ func NewFuncMap() []template.FuncMap {
 		"AppSubUrl": func() string {
 			return setting.AppSubURL
 		},
+		"DeconetHost": func() string {
+			return setting.DeconetHost
+		},
 		"AppUrl": func() string {
 			return setting.AppURL
 		},

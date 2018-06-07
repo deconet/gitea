@@ -115,6 +115,15 @@ func SignIn(ctx *context.Context) {
 		ctx.ServerError("UserSignIn", err)
 		return
 	}
+
+	// added by Chris Cassano
+	if len(oauth2Providers) == 1 {
+		// only one provider, let's just send them directly to that provider.
+		// redirect to /user/oauth2/providerName
+		ctx.Redirect(setting.AppSubURL + "/user/oauth2/" + orderedOAuth2Names[0])
+		return
+	}
+
 	ctx.Data["OrderedOAuth2Names"] = orderedOAuth2Names
 	ctx.Data["OAuth2Providers"] = oauth2Providers
 	ctx.Data["Title"] = ctx.Tr("sign_in")
