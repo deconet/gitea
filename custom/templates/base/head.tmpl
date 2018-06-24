@@ -60,12 +60,15 @@
 	*/`}}
 
 	// function added to sign user out of deconet main web app then gitea
+	// deconet will sign out then redirect to the gitea logout endpoint at "{{AppSubUrl}}/user/logout"
   function signOut() {
-  	var xmlHttpRequest = new XMLHttpRequest(); 
+    var xmlHttpRequest = new XMLHttpRequest(); 
 		xmlHttpRequest.withCredentials = true; 
-    xmlHttpRequest.open("GET", "{{DeconetHost}}/v1/logout", false);  
+    xmlHttpRequest.open("GET", "{{DeconetHost}}/v1/logout", true);
+    xmlHttpRequest.addEventListener("load", function() {
+    	window.location = "{{AppSubUrl}}/user/logout";
+    });
     xmlHttpRequest.send();
-    window.location = "{{AppSubUrl}}/user/logout";
   }
 	</script>
 
