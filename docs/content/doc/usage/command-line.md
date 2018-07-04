@@ -62,8 +62,16 @@ Admin operations:
         - Options:
             - `--username value`, `-u value`: Username. Required.
             - `--password value`, `-p value`: New password. Required.
+            - `--config path`: Gitea configuration file path. Optional. (default: custom/conf/app.ini).
         - Examples:
             - `gitea admin change-password --username myname --password asecurepassword`
+    - `regenerate`
+        - Options:
+            - `hooks`: Regenerate git-hooks for all repositories
+            - `keys`: Regenerate authorized_keys file
+        - Examples:
+            - `gitea admin regenerate hooks`
+            - `gitea admin regenerate keys`
 
 #### cert
 

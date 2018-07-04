@@ -365,22 +365,14 @@ func (repo *Repository) getUnitsByUserID(e Engine, userID int64, isAdmin bool) (
 		return err
 	}
 
-	var allTypes = make(map[UnitType]struct{}, len(allRepUnitTypes))
-	for _, team := range teams {
-		// Administrators can not be limited
-		if team.Authorize >= AccessModeAdmin {
-			return nil
-		}
-		for _, unitType := range team.UnitTypes {
-			allTypes[unitType] = struct{}{}
-		}
-	}
-
 	// unique
 	var newRepoUnits = make([]*RepoUnit, 0, len(repo.Units))
 	for _, u := range repo.Units {
-		if _, ok := allTypes[u.Type]; ok {
-			newRepoUnits = append(newRepoUnits, u)
+		for _, team := range teams {
+			if team.UnitEnabled(u.Type) {
+				newRepoUnits = append(newRepoUnits, u)
+				break
+			}
 		}
 	}
 
@@ -600,9 +592,9 @@ func (repo *Repository) GetAssignees() (_ []*User, err error) {
 	return repo.getAssignees(x)
 }
 
-// GetAssigneeByID returns the user that has write access of repository by given ID.
-func (repo *Repository) GetAssigneeByID(userID int64) (*User, error) {
-	return GetAssigneeByID(repo, userID)
+// GetUserIfHasWriteAccess returns the user that has write access of repository by given ID.
+func (repo *Repository) GetUserIfHasWriteAccess(userID int64) (*User, error) {
+	return GetUserIfHasWriteAccess(repo, userID)
 }
 
 // GetMilestoneByID returns the milestone belongs to repository by given ID.
@@ -789,7 +781,7 @@ var (
 // DescriptionHTML does special handles to description and return HTML string.
 func (repo *Repository) DescriptionHTML() template.HTML {
 	sanitize := func(s string) string {
-		return fmt.Sprintf(`<a href="%[1]s" target="_blank" rel="noopener">%[1]s</a>`, s)
+		return fmt.Sprintf(`<a href="%[1]s" target="_blank" rel="noopener noreferrer">%[1]s</a>`, s)
 	}
 	return template.HTML(descPattern.ReplaceAllStringFunc(markup.Sanitize(repo.Description), sanitize))
 }
@@ -1824,6 +1816,8 @@ func DeleteRepository(doer *User, uid, repoID int64) error {
 		&PullRequest{BaseRepoID: repoID},
 		&RepoUnit{RepoID: repoID},
 		&RepoRedirect{RedirectRepoID: repoID},
+		&Webhook{RepoID: repoID},
+		&HookTask{RepoID: repoID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %v", err)
 	}
@@ -1844,6 +1838,12 @@ func DeleteRepository(doer *User, uid, repoID int64) error {
 			return err
 		}
 		if _, err = sess.In("issue_id", issueIDs).Delete(&IssueUser{}); err != nil {
+			return err
+		}
+		if _, err = sess.In("issue_id", issueIDs).Delete(&Reaction{}); err != nil {
+			return err
+		}
+		if _, err = sess.In("issue_id", issueIDs).Delete(&IssueWatch{}); err != nil {
 			return err
 		}
 
@@ -2454,6 +2454,19 @@ func ForkRepository(doer, u *User, oldRepo *Repository, name, desc string) (_ *R
 	err = sess.Commit()
 	if err != nil {
 		return nil, err
+	}
+
+	oldMode, _ := AccessLevel(doer.ID, oldRepo)
+	mode, _ := AccessLevel(doer.ID, repo)
+
+	if err = PrepareWebhooks(oldRepo, HookEventFork, &api.ForkPayload{
+		Forkee: oldRepo.APIFormat(oldMode),
+		Repo:   repo.APIFormat(mode),
+		Sender: doer.APIFormat(),
+	}); err != nil {
+		log.Error(2, "PrepareWebhooks [repo_id: %d]: %v", oldRepo.ID, err)
+	} else {
+		go HookQueue.Add(oldRepo.ID)
 	}
 
 	if err = repo.UpdateSize(); err != nil {

@@ -155,12 +155,17 @@ func (f *ProtectBranchForm) Validate(ctx *macaron.Context, errs binding.Errors) 
 
 // WebhookForm form for changing web hook
 type WebhookForm struct {
-	Events      string
-	Create      bool
-	Push        bool
-	PullRequest bool
-	Repository  bool
-	Active      bool
+	Events       string
+	Create       bool
+	Delete       bool
+	Fork         bool
+	Issues       bool
+	IssueComment bool
+	Release      bool
+	Push         bool
+	PullRequest  bool
+	Repository   bool
+	Active       bool
 }
 
 // PushOnly if the hook will be triggered when push
@@ -254,6 +259,7 @@ func (f *NewDingtalkHookForm) Validate(ctx *macaron.Context, errs binding.Errors
 type CreateIssueForm struct {
 	Title       string `binding:"Required;MaxSize(255)"`
 	LabelIDs    string `form:"label_ids"`
+	AssigneeIDs string `form:"assignee_ids"`
 	Ref         string `form:"ref"`
 	MilestoneID int64
 	AssigneeID  int64
@@ -365,7 +371,7 @@ func (f *MergePullRequestForm) Validate(ctx *macaron.Context, errs binding.Error
 
 // NewReleaseForm form for creating release
 type NewReleaseForm struct {
-	TagName    string `binding:"Required"`
+	TagName    string `binding:"Required;GitRefName"`
 	Target     string `form:"tag_target" binding:"Required"`
 	Title      string `binding:"Required"`
 	Content    string

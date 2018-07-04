@@ -433,6 +433,17 @@ func (u *User) IsPasswordSet() bool {
 // UploadAvatar saves custom avatar for user.
 // FIXME: split uploads to different subdirs in case we have massive users.
 func (u *User) UploadAvatar(data []byte) error {
+	imgCfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("DecodeConfig: %v", err)
+	}
+	if imgCfg.Width > setting.AvatarMaxWidth {
+		return fmt.Errorf("Image width is to large: %d > %d", imgCfg.Width, setting.AvatarMaxWidth)
+	}
+	if imgCfg.Height > setting.AvatarMaxHeight {
+		return fmt.Errorf("Image height is to large: %d > %d", imgCfg.Height, setting.AvatarMaxHeight)
+	}
+
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("Decode: %v", err)
@@ -546,28 +557,46 @@ func (u *User) GetRepositories(page, pageSize int) (err error) {
 	return err
 }
 
-// GetRepositoryIDs returns repositories IDs where user owned
-func (u *User) GetRepositoryIDs() ([]int64, error) {
+// GetRepositoryIDs returns repositories IDs where user owned and has unittypes
+func (u *User) GetRepositoryIDs(units ...UnitType) ([]int64, error) {
 	var ids []int64
-	return ids, x.Table("repository").Cols("id").Where("owner_id = ?", u.ID).Find(&ids)
+
+	sess := x.Table("repository").Cols("repository.id")
+
+	if len(units) > 0 {
+		sess = sess.Join("INNER", "repo_unit", "repository.id = repo_unit.repo_id")
+		sess = sess.In("repo_unit.type", units)
+	}
+
+	return ids, sess.Where("owner_id = ?", u.ID).Find(&ids)
 }
 
-// GetOrgRepositoryIDs returns repositories IDs where user's team owned
-func (u *User) GetOrgRepositoryIDs() ([]int64, error) {
+// GetOrgRepositoryIDs returns repositories IDs where user's team owned and has unittypes
+func (u *User) GetOrgRepositoryIDs(units ...UnitType) ([]int64, error) {
 	var ids []int64
-	return ids, x.Table("repository").
+
+	sess := x.Table("repository").
 		Cols("repository.id").
-		Join("INNER", "team_user", "repository.owner_id = team_user.org_id AND team_user.uid = ?", u.ID).
+		Join("INNER", "team_user", "repository.owner_id = team_user.org_id").
+		Join("INNER", "team_repo", "repository.is_private != ? OR (team_user.team_id = team_repo.team_id AND repository.id = team_repo.repo_id)", true)
+
+	if len(units) > 0 {
+		sess = sess.Join("INNER", "team_unit", "team_unit.team_id = team_user.team_id")
+		sess = sess.In("team_unit.type", units)
+	}
+
+	return ids, sess.
+		Where("team_user.uid = ?", u.ID).
 		GroupBy("repository.id").Find(&ids)
 }
 
 // GetAccessRepoIDs returns all repositories IDs where user's or user is a team member organizations
-func (u *User) GetAccessRepoIDs() ([]int64, error) {
-	ids, err := u.GetRepositoryIDs()
+func (u *User) GetAccessRepoIDs(units ...UnitType) ([]int64, error) {
+	ids, err := u.GetRepositoryIDs(units...)
 	if err != nil {
 		return nil, err
 	}
-	ids2, err := u.GetOrgRepositoryIDs()
+	ids2, err := u.GetOrgRepositoryIDs(units...)
 	if err != nil {
 		return nil, err
 	}
@@ -993,7 +1022,7 @@ func deleteUser(e *xorm.Session, u *User) error {
 	// ***** END: PublicKey *****
 
 	// Clear assignee.
-	if _, err = e.Exec("UPDATE `issue` SET assignee_id=0 WHERE assignee_id=?", u.ID); err != nil {
+	if err = clearAssigneeByUserID(e, u.ID); err != nil {
 		return fmt.Errorf("clear assignee: %v", err)
 	}
 
@@ -1110,8 +1139,8 @@ func GetUserByID(id int64) (*User, error) {
 	return getUserByID(x, id)
 }
 
-// GetAssigneeByID returns the user with write access of repository by given ID.
-func GetAssigneeByID(repo *Repository, userID int64) (*User, error) {
+// GetUserIfHasWriteAccess returns the user with write access of repository by given ID.
+func GetUserIfHasWriteAccess(repo *Repository, userID int64) (*User, error) {
 	has, err := HasAccess(userID, repo, AccessModeWrite)
 	if err != nil {
 		return nil, err
@@ -1272,7 +1301,7 @@ func GetUser(user *User) (bool, error) {
 type SearchUserOptions struct {
 	Keyword       string
 	Type          UserType
-	OrderBy       string
+	OrderBy       SearchOrderBy
 	Page          int
 	PageSize      int // Can be smaller than or equal to setting.UI.ExplorePagingNum
 	IsActive      util.OptionalBool
@@ -1322,7 +1351,7 @@ func SearchUsers(opts *SearchUserOptions) (users []*User, _ int64, _ error) {
 	users = make([]*User, 0, opts.PageSize)
 	return users, count, x.Where(cond).
 		Limit(opts.PageSize, (opts.Page-1)*opts.PageSize).
-		OrderBy(opts.OrderBy).
+		OrderBy(opts.OrderBy.String()).
 		Find(&users)
 }
 
@@ -1356,6 +1385,119 @@ func GetWatchedRepos(userID int64, private bool) ([]*Repository, error) {
 	return repos, nil
 }
 
+// deleteKeysMarkedForDeletion returns true if ssh keys needs update
+func deleteKeysMarkedForDeletion(keys []string) (bool, error) {
+	// Start session
+	sess := x.NewSession()
+	defer sess.Close()
+	if err := sess.Begin(); err != nil {
+		return false, err
+	}
+
+	// Delete keys marked for deletion
+	var sshKeysNeedUpdate bool
+	for _, KeyToDelete := range keys {
+		key, err := SearchPublicKeyByContent(KeyToDelete)
+		if err != nil {
+			log.Error(4, "SearchPublicKeyByContent: %v", err)
+			continue
+		}
+		if err = deletePublicKeys(sess, key.ID); err != nil {
+			log.Error(4, "deletePublicKeys: %v", err)
+			continue
+		}
+		sshKeysNeedUpdate = true
+	}
+
+	if err := sess.Commit(); err != nil {
+		return false, err
+	}
+
+	return sshKeysNeedUpdate, nil
+}
+
+func addLdapSSHPublicKeys(s *LoginSource, usr *User, SSHPublicKeys []string) bool {
+	var sshKeysNeedUpdate bool
+	for _, sshKey := range SSHPublicKeys {
+		if strings.HasPrefix(strings.ToLower(sshKey), "ssh") {
+			sshKeyName := fmt.Sprintf("%s-%s", s.Name, sshKey[0:40])
+			if _, err := AddPublicKey(usr.ID, sshKeyName, sshKey, s.ID); err != nil {
+				log.Error(4, "addLdapSSHPublicKeys[%s]: Error adding LDAP Public SSH Key for user %s: %v", s.Name, usr.Name, err)
+			} else {
+				log.Trace("addLdapSSHPublicKeys[%s]: Added LDAP Public SSH Key for user %s", s.Name, usr.Name)
+				sshKeysNeedUpdate = true
+			}
+		} else {
+			log.Warn("addLdapSSHPublicKeys[%s]: Skipping invalid LDAP Public SSH Key for user %s: %v", s.Name, usr.Name, sshKey)
+		}
+	}
+	return sshKeysNeedUpdate
+}
+
+func synchronizeLdapSSHPublicKeys(s *LoginSource, SSHPublicKeys []string, usr *User) bool {
+	var sshKeysNeedUpdate bool
+
+	log.Trace("synchronizeLdapSSHPublicKeys[%s]: Handling LDAP Public SSH Key synchronization for user %s", s.Name, usr.Name)
+
+	// Get Public Keys from DB with current LDAP source
+	var giteaKeys []string
+	keys, err := ListPublicLdapSSHKeys(usr.ID, s.ID)
+	if err != nil {
+		log.Error(4, "synchronizeLdapSSHPublicKeys[%s]: Error listing LDAP Public SSH Keys for user %s: %v", s.Name, usr.Name, err)
+	}
+
+	for _, v := range keys {
+		giteaKeys = append(giteaKeys, v.OmitEmail())
+	}
+
+	// Get Public Keys from LDAP and skip duplicate keys
+	var ldapKeys []string
+	for _, v := range SSHPublicKeys {
+		ldapKey := strings.Join(strings.Split(v, " ")[:2], " ")
+		if !util.ExistsInSlice(ldapKey, ldapKeys) {
+			ldapKeys = append(ldapKeys, ldapKey)
+		}
+	}
+
+	// Check if Public Key sync is needed
+	if util.IsEqualSlice(giteaKeys, ldapKeys) {
+		log.Trace("synchronizeLdapSSHPublicKeys[%s]: LDAP Public Keys are already in sync for %s (LDAP:%v/DB:%v)", s.Name, usr.Name, len(ldapKeys), len(giteaKeys))
+		return false
+	}
+	log.Trace("synchronizeLdapSSHPublicKeys[%s]: LDAP Public Key needs update for user %s (LDAP:%v/DB:%v)", s.Name, usr.Name, len(ldapKeys), len(giteaKeys))
+
+	// Add LDAP Public SSH Keys that doesn't already exist in DB
+	var newLdapSSHKeys []string
+	for _, LDAPPublicSSHKey := range ldapKeys {
+		if !util.ExistsInSlice(LDAPPublicSSHKey, giteaKeys) {
+			newLdapSSHKeys = append(newLdapSSHKeys, LDAPPublicSSHKey)
+		}
+	}
+	if addLdapSSHPublicKeys(s, usr, newLdapSSHKeys) {
+		sshKeysNeedUpdate = true
+	}
+
+	// Mark LDAP keys from DB that doesn't exist in LDAP for deletion
+	var giteaKeysToDelete []string
+	for _, giteaKey := range giteaKeys {
+		if !util.ExistsInSlice(giteaKey, ldapKeys) {
+			log.Trace("synchronizeLdapSSHPublicKeys[%s]: Marking LDAP Public SSH Key for deletion for user %s: %v", s.Name, usr.Name, giteaKey)
+			giteaKeysToDelete = append(giteaKeysToDelete, giteaKey)
+		}
+	}
+
+	// Delete LDAP keys from DB that doesn't exist in LDAP
+	needUpd, err := deleteKeysMarkedForDeletion(giteaKeysToDelete)
+	if err != nil {
+		log.Error(4, "synchronizeLdapSSHPublicKeys[%s]: Error deleting LDAP Public SSH Keys marked for deletion for user %s: %v", s.Name, usr.Name, err)
+	}
+	if needUpd {
+		sshKeysNeedUpdate = true
+	}
+
+	return sshKeysNeedUpdate
+}
+
 // SyncExternalUsers is used to synchronize users with external authorization source
 func SyncExternalUsers() {
 	if !taskStatusTable.StartIfNotRunning(syncExternalUsers) {
@@ -1377,10 +1519,13 @@ func SyncExternalUsers() {
 		if !s.IsActived || !s.IsSyncEnabled {
 			continue
 		}
+
 		if s.IsLDAP() {
 			log.Trace("Doing: SyncExternalUsers[%s]", s.Name)
 
 			var existingUsers []int64
+			var isAttributeSSHPublicKeySet = len(strings.TrimSpace(s.LDAP().AttributeSSHPublicKey)) > 0
+			var sshKeysNeedUpdate bool
 
 			// Find all users with this login type
 			var users []User
@@ -1389,7 +1534,6 @@ func SyncExternalUsers() {
 				Find(&users)
 
 			sr := s.LDAP().SearchEntries()
-
 			for _, su := range sr {
 				if len(su.Username) == 0 {
 					continue
@@ -1426,11 +1570,23 @@ func SyncExternalUsers() {
 					}
 
 					err = CreateUser(usr)
+
 					if err != nil {
 						log.Error(4, "SyncExternalUsers[%s]: Error creating user %s: %v", s.Name, su.Username, err)
+					} else if isAttributeSSHPublicKeySet {
+						log.Trace("SyncExternalUsers[%s]: Adding LDAP Public SSH Keys for user %s", s.Name, usr.Name)
+						if addLdapSSHPublicKeys(s, usr, su.SSHPublicKey) {
+							sshKeysNeedUpdate = true
+						}
 					}
 				} else if updateExisting {
 					existingUsers = append(existingUsers, usr.ID)
+
+					// Synchronize SSH Public Key if that attribute is set
+					if isAttributeSSHPublicKeySet && synchronizeLdapSSHPublicKeys(s, su.SSHPublicKey, usr) {
+						sshKeysNeedUpdate = true
+					}
+
 					// Check if user data has changed
 					if (len(s.LDAP().AdminFilter) > 0 && usr.IsAdmin != su.IsAdmin) ||
 						strings.ToLower(usr.Email) != strings.ToLower(su.Mail) ||
@@ -1453,6 +1609,11 @@ func SyncExternalUsers() {
 						}
 					}
 				}
+			}
+
+			// Rewrite authorized_keys file if LDAP Public SSH Key attribute is set and any key was added or removed
+			if sshKeysNeedUpdate {
+				RewriteAllPublicKeys()
 			}
 
 			// Deactivate users not present in LDAP
