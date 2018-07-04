@@ -1822,6 +1822,8 @@ func DeleteRepository(doer *User, uid, repoID int64) error {
 		&PullRequest{BaseRepoID: repoID},
 		&RepoUnit{RepoID: repoID},
 		&RepoRedirect{RedirectRepoID: repoID},
+		&Webhook{RepoID: repoID},
+		&HookTask{RepoID: repoID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %v", err)
 	}
@@ -1842,6 +1844,9 @@ func DeleteRepository(doer *User, uid, repoID int64) error {
 			return err
 		}
 		if _, err = sess.In("issue_id", issueIDs).Delete(&IssueUser{}); err != nil {
+			return err
+		}
+		if _, err = sess.In("issue_id", issueIDs).Delete(&Reaction{}); err != nil {
 			return err
 		}
 

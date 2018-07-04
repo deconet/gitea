@@ -4,6 +4,33 @@ This changelog goes through all the changes that have been made in each release
 without substantial changes to our git log; to see the highlights of what has
 been added to each release, please refer to the [blog](https://blog.gitea.io).
 
+## [1.4.3](https://github.com/go-gitea/gitea/releases/tag/v1.4.3) - 2018-06-26
+* SECURITY
+  * HTML-escape plain-text READMEs (#4192) (#4214)
+  * Fix open redirect vulnerability on login screen (#4312) (#4312)
+* BUGFIXES
+  * Fix broken monitoring page when running processes are shown (#4203) (#4208)
+  * Fix delete comment bug (#4216) (#4228)
+  * Delete reactions added to issues and comments when deleting repository (#4232) (#4237)
+  * Fix wiki URL encoding bug (#4091) (#4254)
+  * Fix code tab link when viewing tags (#3908) (#4263)
+  * Fix webhook type conflation (#4285) (#4285)
+
+## [1.4.2](https://github.com/go-gitea/gitea/releases/tag/v1.4.2) - 2018-06-04
+* BUGFIXES
+  * Adjust z-index for floating labels (#3939) (#3950)
+  * Add missing token validation on application settings page (#3976) #3978
+  * Webhook and hook_task clean up (#4006)
+  * Fix webhook bug of response info is not displayed in UI (#4023)
+  * Fix writer cannot read bare repo guide (#4033) (#4039)
+  * Don't force due date to current time (#3830) (#4057)
+  * Fix wiki redirects (#3919) (#4065)
+  * Fix attachment ENABLED (#4064) (#4066)
+  * Added deletion of an empty line at the end of file (#4054) (#4074)
+  * Use ResolveReference instead of path.Join (#4073)
+  * Fix #4081 Check for leading / in base before removing it (#4083)
+  * Respository's home page not updated after first push (#4075)
+
 ## [1.4.1](https://github.com/go-gitea/gitea/releases/tag/v1.4.1) - 2018-05-03
 * BREAKING
   * Add "error" as reserved username (#3882) (#3886)
