@@ -6,7 +6,7 @@ package org
 
 import (
 	api "code.gitea.io/sdk/gitea"
-
+	"fmt"
 	"code.gitea.io/gitea/models"
 	"code.gitea.io/gitea/modules/context"
 	"code.gitea.io/gitea/routers/api/v1/convert"
@@ -22,6 +22,30 @@ func listUserOrgs(ctx *context.APIContext, u *models.User, all bool) {
 	apiOrgs := make([]*api.Organization, len(u.Orgs))
 	for i := range u.Orgs {
 		apiOrgs[i] = convert.ToOrganization(u.Orgs[i])
+	}
+	ctx.JSON(200, &apiOrgs)
+}
+
+// ListAllOrgs list all orgs
+func ListAllOrgs(ctx *context.APIContext) {
+	// swagger:operation GET /orgs organization orgListCurrentUserOrgs
+	// ---
+	// summary: List the all organizations
+	// produces:
+	// - application/json
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/OrganizationList"
+	fmt.Println("Getting all organizations")
+	orgs, err := models.GetAllOrganizations(1, 1000000, "updated_unix DESC")
+	if err != nil {
+		ctx.Error(500, "ListAllOrgs", err)
+		return
+	}
+
+	apiOrgs := make([]*api.Organization, len(orgs))
+	for i := range orgs {
+		apiOrgs[i] = convert.ToOrganization(orgs[i])
 	}
 	ctx.JSON(200, &apiOrgs)
 }

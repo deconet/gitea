@@ -365,8 +365,10 @@ func RegisterRoutes(m *macaron.Macaron) {
 
 		m.Group("/repos", func() {
 			m.Get("/search", repo.Search)
-			m.Get("/commits", repo.Commits)
+			m.Get("/commits", repo.Commits) // added by deconet
 		})
+
+		m.Get("/orgs/all", org.ListAllOrgs) // added by deconet
 
 		m.Combo("/repositories/:id", reqToken()).Get(repo.GetByID)
 

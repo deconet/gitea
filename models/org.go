@@ -22,6 +22,25 @@ var (
 	ErrTeamNotExist = errors.New("Team does not exist")
 )
 
+// GetAllOrganizations returns a list of all orgs.
+func GetAllOrganizations(page, pageSize int, orderBy string) ([]*User, error) {
+	if len(orderBy) == 0 {
+		orderBy = "updated_unix DESC"
+	}
+
+	sess := x.
+		Where("type=1").
+		OrderBy(orderBy)
+
+	if page <= 0 {
+		page = 1
+	}
+	sess.Limit(pageSize, (page-1)*pageSize)
+
+	orgs := make([]*User, 0, pageSize)
+	return orgs, sess.Find(&orgs)
+}
+
 // IsOwnedBy returns true if given user is in the owner team.
 func (org *User) IsOwnedBy(uid int64) (bool, error) {
 	return IsOrganizationOwner(org.ID, uid)
