@@ -11,6 +11,7 @@
       <form class="ui form" action="{{.Link}}" method="post">
         {{.CsrfTokenHtml}}
         <input type="hidden" name="action" value="update">
+        <input id="repo_name" name="repo_name" type='hidden' value="{{.Repository.Name}}" data-repo-name="{{.Repository.Name}}"/>
         {{if not .Repository.IsFork}}
           <div class="inline field">
             <label>{{.i18n.Tr "repo.visibility"}}</label>
