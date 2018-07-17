@@ -153,19 +153,19 @@ func staticHandler(ctx *Context, log *log.Logger, opt StaticOptions) bool {
 		// Redirect if missing trailing slash.
 		if !strings.HasSuffix(ctx.Req.URL.Path, "/") {
 			// parse URL and make sure we aren't redirecting out of our domain
-			parsedUrl, err := url.Parse(ctx.Req.URL.Path+"/")
+			parsedUrl, err := url.Parse(ctx.Req.URL.Path + "/")
 			if err != nil {
-	        log.Println("[Deconet Mod] error parsing url in special redirect: %v", err)
-	        return false
-	    }
-	    if len(parsedUrl.Hostname()) != 0 {
-	    	// we just parsed the path, but yet, it wants to send us to a new hostname.  fail because otherwise this is an open redirect.
-	    	log.Println("[Deconet Mod] error, prevented an open redirect to another hostname")
-		    log.Println("redirecting to " + ctx.Req.URL.Path+"/")
-				log.Println("request host: "+ctx.Req.Host)
-				log.Println("request uri: "+ctx.Req.RequestURI)
-				log.Println("Hostname of actual request: "+ctx.Req.URL.Hostname())
-				log.Println("Host of actual request: "+ctx.Req.URL.Host)
+				log.Println("[Deconet Mod] error parsing url in special redirect: %v", err)
+				return false
+			}
+			if len(parsedUrl.Hostname()) != 0 {
+				// we just parsed the path, but yet, it wants to send us to a new hostname.  fail because otherwise this is an open redirect.
+				log.Println("[Deconet Mod] error, prevented an open redirect to another hostname")
+				log.Println("redirecting to " + ctx.Req.URL.Path + "/")
+				log.Println("request host: " + ctx.Req.Host)
+				log.Println("request uri: " + ctx.Req.RequestURI)
+				log.Println("Hostname of actual request: " + ctx.Req.URL.Hostname())
+				log.Println("Host of actual request: " + ctx.Req.URL.Host)
 				log.Println("url as string: " + ctx.Req.URL.String())
 				log.Println("rawPath: " + ctx.Req.URL.RawPath)
 				log.Println("escaped path: " + ctx.Req.URL.EscapedPath())
@@ -174,8 +174,8 @@ func staticHandler(ctx *Context, log *log.Logger, opt StaticOptions) bool {
 				log.Println("unescaped path: " + parsedUrl.Path)
 				log.Println("rawPath: " + parsedUrl.RawPath)
 				log.Println("escaped path: " + parsedUrl.EscapedPath())
-	    	return false
-	    } 
+				return false
+			}
 			http.Redirect(ctx.Resp, ctx.Req.Request, ctx.Req.URL.Path+"/", http.StatusFound)
 			return true
 		}
