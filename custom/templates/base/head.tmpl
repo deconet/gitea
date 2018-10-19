@@ -72,8 +72,8 @@
 	// function added to sign user out of deconet main web app then gitea
 	// deconet will sign out then redirect to the gitea logout endpoint at "{{AppSubUrl}}/user/logout"
   function signOut() {
-    var xmlHttpRequest = new XMLHttpRequest(); 
-		xmlHttpRequest.withCredentials = true; 
+    var xmlHttpRequest = new XMLHttpRequest();
+		xmlHttpRequest.withCredentials = true;
     xmlHttpRequest.open("GET", "{{DeconetHost}}/v1/logout", true);
     xmlHttpRequest.addEventListener("load", function() {
     	window.location = "{{AppSubUrl}}/user/logout";
@@ -253,7 +253,7 @@
 										<i class="octicon octicon-settings"></i>
 										{{.i18n.Tr "your_settings"}}<!-- Your settings -->
 									</a>
-									<a class="item" target="_blank" rel="noopener noreferrer" href="https://docs.gitea.io">
+									<a class="item" target="_blank" rel="noopener noreferrer" href="https://app.deco.network/unauth-help">
 										<i class="octicon octicon-question"></i>
 										{{.i18n.Tr "help"}}<!-- Help -->
 									</a>
@@ -277,7 +277,7 @@
 
 					{{else}}
 
-						<a class="item" target="_blank" rel="noopener noreferrer" href="https://docs.gitea.io">{{.i18n.Tr "help"}}</a>
+						<a class="item" target="_blank" rel="noopener noreferrer" href="https://app.deco.network/unauth-help">{{.i18n.Tr "help"}}</a>
 						<div class="right stackable menu">
 							{{if .ShowRegistrationButton}}
 								<a class="item{{if .PageIsSignUp}} active{{end}}" href="{{AppSubUrl}}/user/sign_up">
